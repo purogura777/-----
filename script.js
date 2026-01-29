@@ -275,6 +275,11 @@ async function init() {
     video.srcObject = stream;
     video.onloadedmetadata = function () {
       video.play();
+      
+      // ビデオタグ自体にwidth/height属性を設定（TensorFlow.jsが正しくサイズを認識するために必須）
+      video.width = video.videoWidth;
+      video.height = video.videoHeight;
+      
       overlayCanvas.width = video.videoWidth || 400;
       overlayCanvas.height = video.videoHeight || 300;
       console.log('カメラサイズ:', video.videoWidth, 'x', video.videoHeight);
@@ -401,7 +406,7 @@ async function detect() {
   try {
     window.detectionRunning = true;
     if (!detector) { requestAnimationFrame(detect); return; }
-    if (!video || video.readyState !== 4) {
+    if (!video || video.readyState < 2) {
       requestAnimationFrame(detect);
       return;
     }
@@ -416,7 +421,11 @@ async function detect() {
       overlayCanvas.height = vh;
       console.log('overlayCanvasサイズを更新:', vw, 'x', vh);
     }
-    var estimationConfig = { maxPoses: 4, flipHorizontal: true };
+    var estimationConfig = {
+      maxPoses: 4,
+      flipHorizontal: true,
+      scoreThreshold: 0.25
+    };
     window.poseDetectionCount++;
     var poses;
     try {
