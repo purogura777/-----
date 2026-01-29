@@ -6,7 +6,7 @@
  */
 
 const BGM_PATH = 'music/bgm.mp3';
-const DIFFICULTY_THRESHOLD = { easy: 0.70, normal: 0.80, hard: 0.90 };
+const DIFFICULTY_THRESHOLD = { easy: 0.40, normal: 0.50, hard: 0.60 };
 const COOLDOWN_MS = 2500;
 const MIN_KEYPOINT_SCORE = 0.25;
 
@@ -113,7 +113,7 @@ function poseSimilarity(normUser, targetKeypoints) {
     var dx = tu.x - tt.x;
     var dy = tu.y - tt.y;
     var dist = Math.sqrt(dx * dx + dy * dy);
-    sum += Math.max(0, 1 - dist * 2);
+    sum += Math.max(0, 1 - dist * 0.8);
     count++;
   }
   if (count === 0) return 0;
