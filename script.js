@@ -292,19 +292,25 @@ async function init() {
 }
 
 function drawOverlay(assignedPoses) {
-  var ctx = overlayCanvas.getContext('2d');
-  ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-  if (!assignedPoses) {
-    console.log('drawOverlay: assignedPosesがnull');
-    return;
-  }
+  try {
+    var ctx = overlayCanvas.getContext('2d');
+    if (!ctx) {
+      console.error('drawOverlay: コンテキストを取得できません');
+      return;
+    }
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    if (!assignedPoses) {
+      return;
+    }
   var w = overlayCanvas.width;
   var h = overlayCanvas.height;
-  console.log('drawOverlay: assignedPoses.length =', assignedPoses.length, 'canvas size:', w, 'x', h);
+  if (w === 0 || h === 0) {
+    console.warn('drawOverlay: canvasサイズが無効です', w, 'x', h);
+    return;
+  }
   for (var p = 0; p < assignedPoses.length; p++) {
     var pose = assignedPoses[p];
     if (!pose || !pose.keypoints) {
-      console.log('drawOverlay: プレイヤー' + p + 'のポーズが無効');
       continue;
     }
     var kp = pose.keypoints;
@@ -319,9 +325,7 @@ function drawOverlay(assignedPoses) {
       minY = Math.min(minY, k.y);
       maxY = Math.max(maxY, k.y);
     }
-    console.log('drawOverlay: プレイヤー' + p + ' - 有効キーポイント数:', validKeypointCount, '範囲:', minX, maxX, minY, maxY);
     if (minX === Infinity || validKeypointCount < 3) {
-      console.log('drawOverlay: プレイヤー' + p + 'は表示条件を満たさない（キーポイント数:', validKeypointCount, '）');
       continue;
     }
     var prevPose = previousPosePositions[p];
@@ -338,7 +342,6 @@ function drawOverlay(assignedPoses) {
     if (boxY < 0) { boxH += boxY; boxY = 0; }
     if (boxX + boxW > w) boxW = w - boxX;
     if (boxY + boxH > h) boxH = h - boxY;
-    console.log('drawOverlay: プレイヤー' + p + ' - 枠を描画:', boxX, boxY, boxW, boxH, '色:', color, 'canvas:', w, 'x', h);
     ctx.strokeStyle = color;
     ctx.lineWidth = 3;
     ctx.strokeRect(boxX, boxY, boxW, boxH);
@@ -385,6 +388,9 @@ function drawOverlay(assignedPoses) {
       ctx.textAlign = 'left';
     }
   }
+  } catch (err) {
+    console.error('drawOverlay error', err);
+  }
 }
 
 window.detectionRunning = false;
@@ -399,28 +405,35 @@ async function detect() {
       requestAnimationFrame(detect);
       return;
     }
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
+    var vw = video.videoWidth;
+    var vh = video.videoHeight;
+    if (vw === 0 || vh === 0 || !isFinite(vw) || !isFinite(vh)) {
       requestAnimationFrame(detect);
       return;
     }
+    if (overlayCanvas.width !== vw || overlayCanvas.height !== vh) {
+      overlayCanvas.width = vw;
+      overlayCanvas.height = vh;
+      console.log('overlayCanvasサイズを更新:', vw, 'x', vh);
+    }
     var estimationConfig = { maxPoses: 4, flipHorizontal: true };
     window.poseDetectionCount++;
-    var poses = await detector.estimatePoses(video, estimationConfig);
+    var poses;
+    try {
+      poses = await detector.estimatePoses(video, estimationConfig);
+    } catch (poseErr) {
+      if (poseErr && poseErr.message && poseErr.message.includes('roi width cannot be 0')) {
+        console.warn('estimatePoses: ビデオサイズが無効です。', 'videoWidth:', video.videoWidth, 'videoHeight:', video.videoHeight, 'readyState:', video.readyState);
+        requestAnimationFrame(detect);
+        return;
+      }
+      throw poseErr;
+    }
     if (!poses || !poses.length) {
       lastPlayerPoses = [null, null, null, null];
       drawOverlay(null);
       requestAnimationFrame(detect);
       return;
-    }
-    console.log('検出されたポーズ数:', poses.length);
-    for (var i = 0; i < poses.length; i++) {
-      var validKp = 0;
-      for (var j = 0; j < poses[i].keypoints.length; j++) {
-        if (poses[i].keypoints[j] && poses[i].keypoints[j].score >= MIN_KEYPOINT_SCORE) {
-          validKp++;
-        }
-      }
-      console.log('ポーズ' + i + ': 有効キーポイント数 =', validKp);
     }
     var assigned = assignPlayers(poses);
     var target = TARGET_POSES[currentTargetIndex];
@@ -447,7 +460,11 @@ async function detect() {
         console.log('P1 similarity:', sim.toFixed(3), 'threshold:', threshold.toFixed(3), 'match:', sim >= threshold);
       }
     }
-    drawOverlay(assigned);
+    try {
+      drawOverlay(assigned);
+    } catch (drawErr) {
+      console.error('drawOverlay呼び出しエラー', drawErr);
+    }
     for (var p = 0; p < 4; p++) {
       if (assigned[p]) {
         previousPosePositions[p] = JSON.parse(JSON.stringify(assigned[p]));
@@ -456,7 +473,11 @@ async function detect() {
       }
     }
   } catch (err) {
-    console.error('detect error', err);
+    if (err && err.message && err.message.includes('roi width cannot be 0')) {
+      console.warn('detect: ビデオサイズが無効です。スキップします。', 'videoWidth:', video.videoWidth, 'videoHeight:', video.videoHeight);
+    } else {
+      console.error('detect error', err);
+    }
   }
   requestAnimationFrame(detect);
 }
