@@ -393,6 +393,10 @@ async function detect() {
       requestAnimationFrame(detect);
       return;
     }
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      requestAnimationFrame(detect);
+      return;
+    }
     var estimationConfig = { maxPoses: 4, flipHorizontal: true };
     var poses = await detector.estimatePoses(video, estimationConfig);
     if (!poses || !poses.length) {
