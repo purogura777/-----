@@ -275,6 +275,10 @@ async function init() {
     video.srcObject = stream;
     video.onloadedmetadata = function () {
       video.play();
+      overlayCanvas.width = video.videoWidth || 400;
+      overlayCanvas.height = video.videoHeight || 300;
+      console.log('カメラサイズ:', video.videoWidth, 'x', video.videoHeight);
+      console.log('overlayCanvasサイズ:', overlayCanvas.width, 'x', overlayCanvas.height);
       statusEl.textContent = '準備完了。難易度を選んでポーズを合わせてね。';
       drawTargetPose();
       initDifficultyButtons();
@@ -290,12 +294,19 @@ async function init() {
 function drawOverlay(assignedPoses) {
   var ctx = overlayCanvas.getContext('2d');
   ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-  if (!assignedPoses) return;
+  if (!assignedPoses) {
+    console.log('drawOverlay: assignedPosesがnull');
+    return;
+  }
   var w = overlayCanvas.width;
   var h = overlayCanvas.height;
+  console.log('drawOverlay: assignedPoses.length =', assignedPoses.length, 'canvas size:', w, 'x', h);
   for (var p = 0; p < assignedPoses.length; p++) {
     var pose = assignedPoses[p];
-    if (!pose || !pose.keypoints) continue;
+    if (!pose || !pose.keypoints) {
+      console.log('drawOverlay: プレイヤー' + p + 'のポーズが無効');
+      continue;
+    }
     var kp = pose.keypoints;
     var validKeypointCount = 0;
     var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -308,7 +319,11 @@ function drawOverlay(assignedPoses) {
       minY = Math.min(minY, k.y);
       maxY = Math.max(maxY, k.y);
     }
-    if (minX === Infinity || validKeypointCount < 3) continue;
+    console.log('drawOverlay: プレイヤー' + p + ' - 有効キーポイント数:', validKeypointCount, '範囲:', minX, maxX, minY, maxY);
+    if (minX === Infinity || validKeypointCount < 3) {
+      console.log('drawOverlay: プレイヤー' + p + 'は表示条件を満たさない（キーポイント数:', validKeypointCount, '）');
+      continue;
+    }
     var prevPose = previousPosePositions[p];
     var motion = calculateMotion(prevPose, pose);
     var isMoving = motion > MOTION_THRESHOLD;
@@ -360,6 +375,10 @@ function drawOverlay(assignedPoses) {
 async function detect() {
   try {
     if (!detector) { requestAnimationFrame(detect); return; }
+    if (!video || video.readyState !== 4) {
+      requestAnimationFrame(detect);
+      return;
+    }
     var estimationConfig = { maxPoses: 4, flipHorizontal: true };
     var poses = await detector.estimatePoses(video, estimationConfig);
     if (!poses || !poses.length) {
@@ -367,6 +386,16 @@ async function detect() {
       drawOverlay(null);
       requestAnimationFrame(detect);
       return;
+    }
+    console.log('検出されたポーズ数:', poses.length);
+    for (var i = 0; i < poses.length; i++) {
+      var validKp = 0;
+      for (var j = 0; j < poses[i].keypoints.length; j++) {
+        if (poses[i].keypoints[j] && poses[i].keypoints[j].score >= MIN_KEYPOINT_SCORE) {
+          validKp++;
+        }
+      }
+      console.log('ポーズ' + i + ': 有効キーポイント数 =', validKp);
     }
     var assigned = assignPlayers(poses);
     var target = TARGET_POSES[currentTargetIndex];
