@@ -11,32 +11,19 @@ const COOLDOWN_MS = 2500;
 const MIN_KEYPOINT_SCORE = 0.25;
 const MOTION_THRESHOLD = 15;
 
-// デザイン・発光の設定（ここをいじると調整できます）
+// シンプルな棒人間デザイン設定
 const STYLE = {
-  leftColor: '#00FFFF',   // 左半身の色 (シアン)
-  rightColor: '#FF00FF',  // 右半身の色 (マゼンタ)
-  bodyColor: '#FFFFFF',   // 体幹の色 (白)
-  lineWidth: 8,           // 線の太さ
-  jointRadius: 6,         // 関節の丸の大きさ
-  headRadius: 20,         // 頭の大きさ
+  leftColor: '#00FFFF',   // 左半身 (シアン)
+  rightColor: '#FF00FF',  // 右半身 (マゼンタ)
+  bodyColor: '#FFFFFF',   // 体幹 (白)
+  lineWidth: 6,           // 線の太さ
+  jointRadius: 5,         // 関節の大きさ
+  headRadius: 25,         // 頭の大きさ
   
-  // ラベル（P1, P2...）の設定
-  labelColor: '#FFFFFF',  // 文字色
+  // ラベル設定
+  labelColor: '#FFFFFF',        // 文字色
   labelFont: 'bold 24px Arial', // フォント
-  labelOffset: 40         // 頭の中心からどれくらい上に表示するか
-};
-
-const GLOW_SETTINGS = {
-  // 動いている時の光り方
-  moving: {
-    blur: 30,                       // ぼかしの強さ（大きいほど強く光る）
-    color: 'rgba(255, 255, 255, 1.0)' // 光の色
-  },
-  // 止まっている時の光り方
-  static: {
-    blur: 10,                        // ぼかしの強さ
-    color: 'rgba(255, 255, 255, 0.3)' // 光の色
-  }
+  labelMargin: 15               // 頭のてっぺんからどれくらい離すか
 };
 
 const COCO_KEYPOINT_NAMES = [
@@ -364,9 +351,11 @@ function drawOverlay(assignedPoses) {
     
     if (!assignedPoses) return;
 
-    // 線端のスタイル
+    // 線の端を丸くする（棒人間らしく）
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    // 発光エフェクトは削除（シンプル化）
+    ctx.shadowBlur = 0;
 
     for (var p = 0; p < assignedPoses.length; p++) {
       var pose = assignedPoses[p];
@@ -374,7 +363,7 @@ function drawOverlay(assignedPoses) {
       
       var kp = pose.keypoints;
       
-      // キーポイント座標の変換（鏡写し対応）
+      // 座標変換（鏡写し）
       var km = {};
       var validCount = 0;
       for (var i = 0; i < kp.length; i++) {
@@ -386,21 +375,6 @@ function drawOverlay(assignedPoses) {
       }
       
       if (validCount < 5) continue;
-
-      // 動き判定
-      var prevPose = previousPosePositions[p];
-      var motion = calculateMotion(prevPose, pose);
-      window.motionDetectionCount++;
-      var isMoving = motion > MOTION_THRESHOLD;
-      
-      // ★発光エフェクトの適用
-      if (isMoving) {
-        ctx.shadowBlur = GLOW_SETTINGS.moving.blur;
-        ctx.shadowColor = GLOW_SETTINGS.moving.color;
-      } else {
-        ctx.shadowBlur = GLOW_SETTINGS.static.blur;
-        ctx.shadowColor = GLOW_SETTINGS.static.color;
-      }
 
       // --- 描画関数 ---
       function drawLimb(name1, name2, color) {
@@ -418,42 +392,39 @@ function drawOverlay(assignedPoses) {
         if (km[name]) {
           ctx.beginPath();
           ctx.arc(km[name].x, km[name].y, STYLE.jointRadius, 0, Math.PI * 2);
-          ctx.fillStyle = '#FFF';
+          ctx.fillStyle = color;
           ctx.fill();
-          // 関節の縁取りにも発光色を適用するため stroke する
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.stroke();
         }
       }
 
-      // --- 1. ボーン（線） ---
+      // --- 1. ボーン（骨組み）の描画 ---
       // 体幹
       drawLimb('left_shoulder', 'right_shoulder', STYLE.bodyColor);
       drawLimb('left_hip', 'right_hip', STYLE.bodyColor);
       drawLimb('left_shoulder', 'left_hip', STYLE.leftColor);
       drawLimb('right_shoulder', 'right_hip', STYLE.rightColor);
 
-      // 左側 (Cyan)
+      // 左手足
       drawLimb('left_shoulder', 'left_elbow', STYLE.leftColor);
       drawLimb('left_elbow', 'left_wrist', STYLE.leftColor);
       drawLimb('left_hip', 'left_knee', STYLE.leftColor);
       drawLimb('left_knee', 'left_ankle', STYLE.leftColor);
 
-      // 右側 (Magenta)
+      // 右手足
       drawLimb('right_shoulder', 'right_elbow', STYLE.rightColor);
       drawLimb('right_elbow', 'right_wrist', STYLE.rightColor);
       drawLimb('right_hip', 'right_knee', STYLE.rightColor);
       drawLimb('right_knee', 'right_ankle', STYLE.rightColor);
 
-      // --- 2. ジョイント（関節） ---
+      // --- 2. ジョイント（関節）の描画 ---
       ['left_shoulder', 'left_elbow', 'left_wrist', 'left_hip', 'left_knee', 'left_ankle']
         .forEach(function(n) { drawJoint(n, STYLE.leftColor); });
       
       ['right_shoulder', 'right_elbow', 'right_wrist', 'right_hip', 'right_knee', 'right_ankle']
         .forEach(function(n) { drawJoint(n, STYLE.rightColor); });
 
-      // --- 3. 頭（顔）とプレイヤーラベル ---
+
+      // --- 3. 顔とラベル ---
       var faceParts = ['nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear'];
       var fx = 0, fy = 0, fCount = 0;
       for (var f = 0; f < faceParts.length; f++) {
@@ -465,10 +436,10 @@ function drawOverlay(assignedPoses) {
         }
       }
 
-      // 顔が見つからない場合は「両肩の中点の上」を仮の頭とする
+      // 顔パーツが見つからない場合のフォールバック（肩の中心から少し上）
       if (fCount === 0 && km['left_shoulder'] && km['right_shoulder']) {
         fx = (km['left_shoulder'].x + km['right_shoulder'].x) / 2;
-        fy = (km['left_shoulder'].y + km['right_shoulder'].y) / 2 - 40;
+        fy = (km['left_shoulder'].y + km['right_shoulder'].y) / 2 - 50;
         fCount = 1;
       }
 
@@ -476,37 +447,27 @@ function drawOverlay(assignedPoses) {
         var faceX = fx / fCount;
         var faceY = fy / fCount;
 
-        // 顔アイコン
+        // 顔（シンプルな丸）
         ctx.beginPath();
         ctx.arc(faceX, faceY, STYLE.headRadius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.fill();
         ctx.strokeStyle = STYLE.bodyColor;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 4;
         ctx.stroke();
+        // 中を少し半透明の白で塗る（背景が見えるように）
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fill();
 
-        // ★プレイヤーラベル (頭の上に表示)
-        // 文字には発光をかけないため、一時的にshadowBlurをリセット
-        ctx.shadowBlur = 0;
-        
+        // ★ラベル表示（確実に頭の上に配置）
+        // 「顔の中心」から「半径」分上に移動し、さらに「マージン」分上げる
+        var labelY = faceY - STYLE.headRadius - STYLE.labelMargin;
+
         ctx.fillStyle = STYLE.labelColor;
         ctx.font = STYLE.labelFont;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom'; // 下揃えにすることで座標の上に文字が乗る
-        // 頭の中心から STYLE.labelOffset 分だけ上に表示
-        ctx.fillText('P' + (p + 1), faceX, faceY - STYLE.labelOffset);
-        
-        // 発光設定を戻す（次の人の描画のため）
-        if (isMoving) {
-            ctx.shadowBlur = GLOW_SETTINGS.moving.blur;
-        } else {
-            ctx.shadowBlur = GLOW_SETTINGS.static.blur;
-        }
+        ctx.textBaseline = 'bottom'; // 文字の下端を基準にする
+        ctx.fillText('P' + (p + 1), faceX, labelY);
       }
     }
-    
-    // 最後に設定をリセット
-    ctx.shadowBlur = 0;
 
   } catch (err) {
     console.error('drawOverlay error', err);
