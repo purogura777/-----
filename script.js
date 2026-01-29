@@ -337,7 +337,10 @@ function drawOverlay(assignedPoses) {
     var motion = calculateMotion(prevPose, pose);
     window.motionDetectionCount++;
     var isMoving = motion > MOTION_THRESHOLD;
-    var color = isMoving ? '#f44336' : '#4CAF50';
+    var baseColor = isMoving ? '#f44336' : '#4CAF50';
+    var brightColor = isMoving ? '#ff6b6b' : '#66bb6a';
+    var darkColor = isMoving ? '#c62828' : '#2e7d32';
+    
     var padding = 20;
     var boxX = w - maxX - padding;
     var boxY = minY - padding;
@@ -347,11 +350,41 @@ function drawOverlay(assignedPoses) {
     if (boxY < 0) { boxH += boxY; boxY = 0; }
     if (boxX + boxW > w) boxW = w - boxX;
     if (boxY + boxH > h) boxH = h - boxY;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    ctx.strokeRect(boxX, boxY, boxW, boxH);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    
+    // 枠を描画（角丸、影付き）
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    ctx.strokeStyle = baseColor;
+    ctx.lineWidth = 4;
+    ctx.lineJoin = 'round';
+    var cornerRadius = 8;
+    ctx.beginPath();
+    ctx.moveTo(boxX + cornerRadius, boxY);
+    ctx.lineTo(boxX + boxW - cornerRadius, boxY);
+    ctx.quadraticCurveTo(boxX + boxW, boxY, boxX + boxW, boxY + cornerRadius);
+    ctx.lineTo(boxX + boxW, boxY + boxH - cornerRadius);
+    ctx.quadraticCurveTo(boxX + boxW, boxY + boxH, boxX + boxW - cornerRadius, boxY + boxH);
+    ctx.lineTo(boxX + cornerRadius, boxY + boxH);
+    ctx.quadraticCurveTo(boxX, boxY + boxH, boxX, boxY + boxH - cornerRadius);
+    ctx.lineTo(boxX, boxY + cornerRadius);
+    ctx.quadraticCurveTo(boxX, boxY, boxX + cornerRadius, boxY);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+    
+    // スケルトンラインを描画（太め、滑らか、グラデーション風）
+    ctx.save();
+    ctx.strokeStyle = baseColor;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = baseColor;
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
     for (var j = 0; j < SKELETON_EDGES.length; j++) {
       var edge = SKELETON_EDGES[j];
       var kp1 = kp.find(function (k) { return k && k.name === edge[0]; });
@@ -368,29 +401,84 @@ function drawOverlay(assignedPoses) {
       ctx.lineTo(x2, y2);
       ctx.stroke();
     }
-    ctx.fillStyle = color;
+    ctx.restore();
+    
+    // キーポイント（関節）を描画（グラデーション、影付き）
     for (var k = 0; k < kp.length; k++) {
       var keypoint = kp[k];
       if (!keypoint || !keypoint.score || keypoint.score < MIN_KEYPOINT_SCORE) continue;
       var x = w - keypoint.x;
       var y = keypoint.y;
       if (x < 0 || x > w || y < 0 || y > h) continue;
+      
+      ctx.save();
+      var gradient = ctx.createRadialGradient(x, y, 0, x, y, 8);
+      gradient.addColorStop(0, brightColor);
+      gradient.addColorStop(0.7, baseColor);
+      gradient.addColorStop(1, darkColor);
+      ctx.fillStyle = gradient;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
       ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
+      
+      // 内側の白い点
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
     var leftS = kp.find(function (k) { return k && k.name === 'left_shoulder'; });
     var rightS = kp.find(function (k) { return k && k.name === 'right_shoulder'; });
     if (leftS && rightS) {
       var centerX = w - (leftS.x + rightS.x) / 2;
-      var labelY = Math.max(0, Math.min(leftS.y, rightS.y) - 10);
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(centerX - 30, labelY - 20, 60, 20);
+      var labelY = Math.max(0, Math.min(leftS.y, rightS.y) - 15);
+      
+      // プレイヤーラベル（角丸、グラデーション、影付き）
+      ctx.save();
+      var labelGradient = ctx.createLinearGradient(centerX - 35, labelY - 25, centerX - 35, labelY - 5);
+      labelGradient.addColorStop(0, 'rgba(0, 0, 0, 0.8)');
+      labelGradient.addColorStop(1, 'rgba(0, 0, 0, 0.6)');
+      ctx.fillStyle = labelGradient;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 2;
+      var labelRadius = 12;
+      ctx.beginPath();
+      ctx.moveTo(centerX - 35 + labelRadius, labelY - 25);
+      ctx.lineTo(centerX + 35 - labelRadius, labelY - 25);
+      ctx.quadraticCurveTo(centerX + 35, labelY - 25, centerX + 35, labelY - 25 + labelRadius);
+      ctx.lineTo(centerX + 35, labelY - 5 - labelRadius);
+      ctx.quadraticCurveTo(centerX + 35, labelY - 5, centerX + 35 - labelRadius, labelY - 5);
+      ctx.lineTo(centerX - 35 + labelRadius, labelY - 5);
+      ctx.quadraticCurveTo(centerX - 35, labelY - 5, centerX - 35, labelY - 5 - labelRadius);
+      ctx.lineTo(centerX - 35, labelY - 25 + labelRadius);
+      ctx.quadraticCurveTo(centerX - 35, labelY - 25, centerX - 35 + labelRadius, labelY - 25);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      
+      // テキスト（太字、影付き）
+      ctx.save();
       ctx.fillStyle = '#fff';
-      ctx.font = '14px Arial';
+      ctx.font = 'bold 16px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('P' + (p + 1), centerX, labelY - 5);
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
+      ctx.fillText('P' + (p + 1), centerX, labelY - 15);
+      ctx.restore();
       ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
     }
   }
   } catch (err) {
