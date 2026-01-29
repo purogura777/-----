@@ -2,55 +2,76 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ポーズ合わせゲーム</title>
     <style>
-        body { font-family: 'Arial', sans-serif; background: #f0f2f5; margin: 0; display: flex; flex-direction: column; align-items: center; }
-        h1 { margin: 10px 0; }
-        .scores { display: flex; gap: 15px; margin: 10px 0; flex-wrap: nowrap; justify-content: center; }
-        .score-card { min-width: 80px; padding: 10px 15px; border-radius: 10px; background: white; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .score-card .label { font-size: 0.9rem; color: #666; }
-        .score-card .point { font-size: 1.8rem; font-weight: bold; color: #333; }
-        .difficulty { margin: 10px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
-        .difficulty button { padding: 8px 16px; border-radius: 8px; border: 1px solid #ccc; background: white; cursor: pointer; }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; overflow: hidden; }
+        body { font-family: 'Arial', sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; width: 100%; }
+        h1 { margin: 8px 0; font-size: clamp(1rem, 4vw, 1.5rem); flex-shrink: 0; }
+        .top-row { display: flex; gap: 10px; margin: 5px 0; align-items: flex-start; justify-content: center; flex-wrap: wrap; width: 100%; max-width: 100%; padding: 0 10px; flex-shrink: 0; }
+        .scores-section { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+        .scores { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+        .score-card { min-width: 60px; padding: 6px 10px; border-radius: 8px; background: white; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .score-card .label { font-size: 0.8rem; color: #666; }
+        .score-card .point { font-size: 1.4rem; font-weight: bold; color: #333; }
+        .difficulty { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
+        .difficulty button { padding: 6px 12px; border-radius: 6px; border: 1px solid #ccc; background: white; cursor: pointer; font-size: 0.85rem; }
         .difficulty button.active { background: #4CAF50; color: white; border-color: #4CAF50; }
-        .main { display: flex; gap: 20px; margin: 15px 0; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
-        .target-area { width: 200px; min-height: 260px; padding: 15px; border-radius: 10px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
-        .target-area h3 { margin: 0 0 10px 0; font-size: 1rem; }
-        #targetCanvas { width: 160px; height: 200px; margin: 0 auto; display: block; background: #fafafa; border-radius: 6px; }
-        .camera-area { position: relative; display: inline-block; }
-        #webcam { width: 560px; height: 420px; transform: scaleX(-1); border-radius: 10px; display: block; object-fit: contain; }
-        #overlayCanvas { position: absolute; left: 0; top: 0; width: 560px; height: 420px; transform: scaleX(-1); pointer-events: none; }
-        #status { font-size: 1rem; margin-top: 8px; min-height: 1.2rem; color: #666; }
-        #nextPoseBtn { margin-top: 10px; padding: 8px 16px; border-radius: 8px; border: 1px solid #2196F3; background: #2196F3; color: white; cursor: pointer; }
+        .player-count { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
+        .player-count button { padding: 6px 12px; border-radius: 6px; border: 1px solid #ccc; background: white; cursor: pointer; font-size: 0.85rem; }
+        .player-count button.active { background: #2196F3; color: white; border-color: #2196F3; }
+        .main { flex: 1; min-height: 0; width: 100%; max-width: 100%; padding: 0; display: flex; flex-direction: column; }
+        .target-area { width: clamp(120px, 20vw, 200px); min-height: 0; padding: 10px; border-radius: 8px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; flex-shrink: 0; }
+        .target-area h3 { margin: 0 0 6px 0; font-size: 0.9rem; }
+        #targetCanvas { width: 100%; max-width: 160px; height: auto; aspect-ratio: 160/200; margin: 0 auto; display: block; background: #fafafa; border-radius: 6px; }
+        .camera-area { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; padding: 10px; }
+        .camera-inner { position: relative; width: 100%; max-width: 640px; aspect-ratio: 4/3; overflow: hidden; border-radius: 8px; }
+        #webcam { width: 100%; height: 100%; transform: scaleX(-1); display: block; object-fit: cover; object-position: center; }
+        #overlayCanvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }
+        #status { font-size: 0.9rem; margin: 4px 0; min-height: 1.2rem; color: #666; flex-shrink: 0; }
+        #nextPoseBtn { margin-top: 6px; padding: 6px 12px; border-radius: 6px; border: 1px solid #2196F3; background: #2196F3; color: white; cursor: pointer; font-size: 0.85rem; }
     </style>
 </head>
 <body>
     <h1>ポーズ合わせゲーム</h1>
 
-    <div class="scores" id="scoresArea">
-        <div class="score-card"><div class="label">P1</div><div id="score1" class="point">0</div></div>
-        <div class="score-card"><div class="label">P2</div><div id="score2" class="point">0</div></div>
-        <div class="score-card"><div class="label">P3</div><div id="score3" class="point">0</div></div>
-        <div class="score-card"><div class="label">P4</div><div id="score4" class="point">0</div></div>
-    </div>
-
-    <div class="difficulty">
-        <span>難易度:</span>
-        <button type="button" id="diffEasy" data-diff="easy">かんたん</button>
-        <button type="button" id="diffNormal" data-diff="normal">ふつう</button>
-        <button type="button" id="diffHard" data-diff="hard">むずかしい</button>
-    </div>
-
-    <div class="main">
+    <div class="top-row">
         <div class="target-area">
             <h3>お題ポーズ</h3>
             <canvas id="targetCanvas" width="160" height="200"></canvas>
             <p id="targetName" style="margin: 8px 0 0 0; font-size: 0.9rem;">-</p>
             <button type="button" id="nextPoseBtn">次のポーズ</button>
         </div>
+        <div class="scores-section">
+            <div class="scores" id="scoresArea">
+                <div class="score-card"><div class="label">P1</div><div id="score1" class="point">0</div></div>
+                <div class="score-card"><div class="label">P2</div><div id="score2" class="point">0</div></div>
+                <div class="score-card"><div class="label">P3</div><div id="score3" class="point">0</div></div>
+                <div class="score-card"><div class="label">P4</div><div id="score4" class="point">0</div></div>
+            </div>
+            <div class="player-count">
+                <span>人数:</span>
+                <button type="button" id="players1" data-count="1">1人</button>
+                <button type="button" id="players2" data-count="2">2人</button>
+                <button type="button" id="players3" data-count="3">3人</button>
+                <button type="button" id="players4" data-count="4">4人</button>
+            </div>
+            <div class="difficulty">
+                <span>難易度:</span>
+                <button type="button" id="diffEasy" data-diff="easy">かんたん</button>
+                <button type="button" id="diffNormal" data-diff="normal">ふつう</button>
+                <button type="button" id="diffHard" data-diff="hard">むずかしい</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main">
         <div class="camera-area">
-            <video id="webcam" autoplay playsinline></video>
-            <canvas id="overlayCanvas" width="400" height="300"></canvas>
+            <div class="camera-inner">
+                <video id="webcam" autoplay playsinline></video>
+                <canvas id="overlayCanvas" width="400" height="300"></canvas>
+            </div>
         </div>
     </div>
 

@@ -6,8 +6,9 @@
  */
 
 const BGM_PATH = 'music/bgm.mp3';
-const DIFFICULTY_THRESHOLD = { easy: 0.65, normal: 0.80, hard: 0.90 };
+const DIFFICULTY_THRESHOLD = { easy: 0.78, normal: 0.88, hard: 0.95 };
 const COOLDOWN_MS = 2500;
+const HOLD_FRAMES_REQUIRED = 12;
 const MIN_KEYPOINT_SCORE = 0.25;
 const MOTION_THRESHOLD = 15;
 
@@ -50,9 +51,11 @@ const SKELETON_EDGES = [
 
 let detector = null;
 let currentDifficulty = 'normal';
+let maxPlayerCount = 4;
 let currentTargetIndex = 0;
 let playerScores = [0, 0, 0, 0];
 let playerCooldownUntil = [0, 0, 0, 0];
+let playerMatchFrameCount = [0, 0, 0, 0];
 let lastPlayerPoses = [null, null, null, null];
 let lastJudgeResult = [null, null, null, null];
 let gameStarted = false;
@@ -132,7 +135,7 @@ function poseSimilarity(normUser, targetKeypoints) {
     var dx = tu.x - tt.x;
     var dy = tu.y - tt.y;
     var dist = Math.sqrt(dx * dx + dy * dy);
-    sum += Math.max(0, 1 - dist * 1.6);
+    sum += Math.max(0, 1 - dist * 2.8);
     count++;
   }
   if (count === 0) return 0;
@@ -222,6 +225,32 @@ function updateScoreDisplays() {
     var el = document.getElementById('score' + (i + 1));
     if (el) el.textContent = playerScores[i];
   }
+}
+
+function updateScoreCardVisibility() {
+  for (var i = 0; i < 4; i++) {
+    var card = document.querySelector('.scores .score-card:nth-child(' + (i + 1) + ')');
+    if (card) card.style.display = i < maxPlayerCount ? '' : 'none';
+  }
+}
+
+function initPlayerCountButtons() {
+  [1, 2, 3, 4].forEach(function (n) {
+    var btn = document.getElementById('players' + n);
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      maxPlayerCount = n;
+      document.querySelectorAll('.player-count button').forEach(function (b) { b.classList.remove('active'); });
+      if (btn) btn.classList.add('active');
+      updateScoreCardVisibility();
+      for (var i = 0; i < 4; i++) {
+        smoothedKeypoints[i] = null;
+        playerMatchFrameCount[i] = 0;
+      }
+    });
+  });
+  var btn4 = document.getElementById('players4');
+  if (btn4) btn4.classList.add('active');
 }
 
 function assignPlayers(poses) {
@@ -348,7 +377,10 @@ function initNextPoseButton() {
   if (btn) btn.addEventListener('click', function () {
     currentTargetIndex = (currentTargetIndex + 1) % TARGET_POSES.length;
     drawTargetPose();
-    for (var i = 0; i < 4; i++) lastJudgeResult[i] = null;
+    for (var i = 0; i < 4; i++) {
+      lastJudgeResult[i] = null;
+      playerMatchFrameCount[i] = 0;
+    }
   });
 }
 
@@ -372,6 +404,8 @@ async function init() {
       console.log('overlayCanvasサイズ:', overlayCanvas.width, 'x', overlayCanvas.height);
       statusEl.textContent = '準備完了。難易度を選んでポーズを合わせてね。';
       drawTargetPose();
+      initPlayerCountButtons();
+      updateScoreCardVisibility();
       initDifficultyButtons();
       initNextPoseButton();
       updateScoreDisplays();
@@ -397,7 +431,7 @@ function drawOverlay(assignedPoses) {
     ctx.lineJoin = 'round';
     ctx.shadowBlur = 0;
 
-    for (var p = 0; p < assignedPoses.length; p++) {
+    for (var p = 0; p < maxPlayerCount; p++) {
       var pose = assignedPoses[p];
       if (!pose || !pose.keypoints) {
         smoothedKeypoints[p] = null;
@@ -586,7 +620,7 @@ async function detect() {
       console.log('overlayCanvasサイズを更新:', vw, 'x', vh);
     }
     var estimationConfig = {
-      maxPoses: 4,
+      maxPoses: maxPlayerCount,
       flipHorizontal: true,
       scoreThreshold: 0.25
     };
@@ -612,7 +646,7 @@ async function detect() {
     var target = TARGET_POSES[currentTargetIndex];
     var threshold = DIFFICULTY_THRESHOLD[currentDifficulty] || 0.8;
     var now = Date.now();
-    for (var p = 0; p < 4; p++) {
+    for (var p = 0; p < maxPlayerCount; p++) {
       lastPlayerPoses[p] = assigned[p];
       lastJudgeResult[p] = null;
       if (!assigned[p] || !target || !target.keypoints) continue;
@@ -620,13 +654,16 @@ async function detect() {
       var normUser = normalizePose(userMap);
       var sim = poseSimilarity(normUser, target.keypoints);
       if (sim >= threshold) {
-        if (now >= playerCooldownUntil[p]) {
+        playerMatchFrameCount[p]++;
+        if (playerMatchFrameCount[p] >= HOLD_FRAMES_REQUIRED && now >= playerCooldownUntil[p]) {
           playerScores[p]++;
           playerCooldownUntil[p] = now + COOLDOWN_MS;
+          playerMatchFrameCount[p] = 0;
           updateScoreDisplays();
         }
         lastJudgeResult[p] = true;
       } else {
+        playerMatchFrameCount[p] = 0;
         lastJudgeResult[p] = false;
       }
       if (p === 0 && sim > 0) {
