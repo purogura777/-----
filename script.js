@@ -23,7 +23,7 @@ const STYLE = {
   // ラベル設定
   labelColor: '#FFFFFF',        // 文字色
   labelFont: 'bold 24px Arial', // フォント
-  labelMargin: 80               // 肩の位置からどれくらい上に表示するか（さらに上に）
+  labelMargin: 120              // 肩の位置からどれくらい上に表示するか（目を認識する視点のさらに上）
 };
 
 const COCO_KEYPOINT_NAMES = [
@@ -228,10 +228,16 @@ function assignPlayers(poses) {
   
   if (!poses || poses.length === 0) return assigned;
   
+  // canvasの幅を取得（反転計算に必要）
+  var canvasWidth = overlayCanvas ? overlayCanvas.width : 640; // デフォルト値
+  
   // ポーズをx座標でソート（左から順に1P、2P...）
+  // flipHorizontal: trueで既に反転されているため、drawOverlayと同じく w - x で反転後の座標を計算
   var posesWithIndex = poses.map(function(pose, idx) {
     var center = getPoseCenter(pose.keypoints);
-    return { pose: pose, index: idx, centerX: center.x };
+    // 反転後の座標を計算（drawOverlayと同じ変換）
+    var flippedX = canvasWidth - center.x;
+    return { pose: pose, index: idx, centerX: flippedX };
   });
   posesWithIndex.sort(function(a, b) {
     return a.centerX - b.centerX; // x座標が小さい（左側）から順
@@ -241,6 +247,10 @@ function assignPlayers(poses) {
   for (var p = 0; p < 4; p++) {
     var prev = lastPlayerPoses[p];
     var prevCenter = prev ? getPoseCenter(prev.keypoints) : null;
+    // 前回のポーズも反転後の座標で計算
+    if (prevCenter) {
+      prevCenter = { x: canvasWidth - prevCenter.x, y: prevCenter.y };
+    }
     
     var bestIdx = -1;
     var bestDist = Infinity;
@@ -250,14 +260,17 @@ function assignPlayers(poses) {
       
       var currentPose = posesWithIndex[i].pose;
       var currentCenter = getPoseCenter(currentPose.keypoints);
+      // 現在のポーズも反転後の座標で計算
+      var flippedCurrentX = canvasWidth - currentCenter.x;
+      var flippedCurrentCenter = { x: flippedCurrentX, y: currentCenter.y };
       
       var dist;
       if (prevCenter) {
-        // 前回のポーズがある場合は距離で判定
-        dist = Math.hypot(currentCenter.x - prevCenter.x, currentCenter.y - prevCenter.y);
+        // 前回のポーズがある場合は距離で判定（反転後の座標で）
+        dist = Math.hypot(flippedCurrentCenter.x - prevCenter.x, flippedCurrentCenter.y - prevCenter.y);
       } else {
-        // 前回のポーズがない場合は、x座標の順序で判定
-        dist = Math.abs(currentCenter.x - (p * 200)); // 仮の位置
+        // 前回のポーズがない場合は、x座標の順序で判定（反転後の座標で）
+        dist = Math.abs(flippedCurrentX - (p * 200)); // 仮の位置
       }
       
       if (dist < bestDist) {
@@ -430,6 +443,20 @@ function drawOverlay(assignedPoses) {
       drawLimb('left_hip', 'right_hip', STYLE.bodyColor);
       drawLimb('left_shoulder', 'left_hip', STYLE.leftColor);
       drawLimb('right_shoulder', 'right_hip', STYLE.rightColor);
+      
+      // 胴体の縦線（肩の中心と腰の中心を結ぶ）
+      if (km['left_shoulder'] && km['right_shoulder'] && km['left_hip'] && km['right_hip']) {
+        var shoulderCenterX = (km['left_shoulder'].x + km['right_shoulder'].x) / 2;
+        var shoulderCenterY = (km['left_shoulder'].y + km['right_shoulder'].y) / 2;
+        var hipCenterX = (km['left_hip'].x + km['right_hip'].x) / 2;
+        var hipCenterY = (km['left_hip'].y + km['right_hip'].y) / 2;
+        ctx.beginPath();
+        ctx.moveTo(shoulderCenterX, shoulderCenterY);
+        ctx.lineTo(hipCenterX, hipCenterY);
+        ctx.strokeStyle = STYLE.bodyColor;
+        ctx.lineWidth = STYLE.lineWidth;
+        ctx.stroke();
+      }
 
       // 左手足
       drawLimb('left_shoulder', 'left_elbow', STYLE.leftColor);
@@ -451,19 +478,24 @@ function drawOverlay(assignedPoses) {
         .forEach(function(n) { drawJoint(n, STYLE.rightColor); });
 
 
-      // --- 3. ラベル表示（肩の位置から計算） ---
+      // --- 3. ラベル表示（肩の位置から計算、反転を考慮） ---
       if (km['left_shoulder'] && km['right_shoulder']) {
+        // 肩の中心（既に反転済みの座標を使用）
         var shoulderCenterX = (km['left_shoulder'].x + km['right_shoulder'].x) / 2;
         var shoulderCenterY = Math.min(km['left_shoulder'].y, km['right_shoulder'].y);
         
-        // 肩の位置から上にマージン分離してラベルを表示
+        // 肩の位置から上にマージン分離してラベルを表示（目を認識する視点のさらに上）
         var labelY = shoulderCenterY - STYLE.labelMargin;
 
+        // テキストは反転させない（座標変換は座標のみ、テキストは通常通り）
+        ctx.save(); // 現在の状態を保存
         ctx.fillStyle = STYLE.labelColor;
         ctx.font = STYLE.labelFont;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom'; // 文字の下端を基準にする
+        ctx.textBaseline = 'bottom';
+        // テキストは反転させずに通常通り描画
         ctx.fillText('P' + (p + 1), shoulderCenterX, labelY);
+        ctx.restore(); // 状態を復元
       }
     }
 
