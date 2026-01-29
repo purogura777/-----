@@ -312,7 +312,7 @@ function drawOverlay(assignedPoses) {
     }
     if (minX === Infinity) continue;
     var padding = 20;
-    var boxX = minX - padding;
+    var boxX = w - maxX - padding;
     var boxY = minY - padding;
     var boxW = maxX - minX + padding * 2;
     var boxH = maxY - minY + padding * 2;
@@ -327,8 +327,8 @@ function drawOverlay(assignedPoses) {
       var kp2 = kp.find(function (k) { return k && k.name === edge[1]; });
       if (!kp1 || !kp2 || !kp1.score || !kp2.score || kp1.score < MIN_KEYPOINT_SCORE || kp2.score < MIN_KEYPOINT_SCORE) continue;
       ctx.beginPath();
-      ctx.moveTo(kp1.x, kp1.y);
-      ctx.lineTo(kp2.x, kp2.y);
+      ctx.moveTo(w - kp1.x, kp1.y);
+      ctx.lineTo(w - kp2.x, kp2.y);
       ctx.stroke();
     }
     ctx.fillStyle = color;
@@ -336,13 +336,13 @@ function drawOverlay(assignedPoses) {
       var keypoint = kp[k];
       if (!keypoint || !keypoint.score || keypoint.score < MIN_KEYPOINT_SCORE) continue;
       ctx.beginPath();
-      ctx.arc(keypoint.x, keypoint.y, 4, 0, Math.PI * 2);
+      ctx.arc(w - keypoint.x, keypoint.y, 4, 0, Math.PI * 2);
       ctx.fill();
     }
     var leftS = kp.find(function (k) { return k && k.name === 'left_shoulder'; });
     var rightS = kp.find(function (k) { return k && k.name === 'right_shoulder'; });
     if (leftS && rightS) {
-      var centerX = (leftS.x + rightS.x) / 2;
+      var centerX = w - (leftS.x + rightS.x) / 2;
       var labelY = Math.max(0, Math.min(leftS.y, rightS.y) - 10);
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
       ctx.fillRect(centerX - 30, labelY - 20, 60, 20);
