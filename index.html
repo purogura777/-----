@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ジェスチャー投票アプリ</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #f0f2f5; margin: 0; display: flex; flex-direction: column; align-items: center; }
+        .container { display: flex; gap: 20px; margin-top: 20px; }
+        .card { width: 250px; padding: 15px; border-radius: 15px; background: white; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 5px solid transparent; }
+        .active { border-color: #4CAF50; background: #e8f5e9; }
+        .count { font-size: 2.5rem; font-weight: bold; color: #333; }
+        video { width: 400px; height: 300px; transform: scaleX(-1); border-radius: 10px; margin-top: 10px; }
+        #status { font-size: 1.2rem; margin-top: 10px; height: 1.5rem; color: #666; }
+        
+        /* グラフエリアのサイズ調整 */
+        .chart-container { width: 400px; height: 200px; margin: 20px auto; background: white; padding: 10px; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <h1>手をあげて投票！</h1>
+    
+    <div class="container">
+        <div id="cardA" class="card">
+            <h2>【A】犬派</h2>
+            <div id="countA" class="count">0</div>
+            <p>左手をあげる</p>
+        </div>
+        <div id="cardB" class="card">
+            <h2>【B】猫派</h2>
+            <div id="countB" class="count">0</div>
+            <p>右手をあげる</p>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="voteChart"></canvas>
+    </div>
+
+    <video id="webcam" autoplay playsinline></video>
+    <div id="status">カメラ起動中...</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
+    
+    <script src="script.js" defer></script>
+</body>
+</html>
