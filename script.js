@@ -149,8 +149,16 @@ function drawTargetPose() {
   function toCanvas(x, y) {
     return { x: w / 2 + (x - cx) * scale, y: h / 2 + (y - cy) * scale };
   }
-  ctx.strokeStyle = '#333';
-  ctx.lineWidth = 2;
+  // スケルトンラインを描画（太め、滑らか、影付き）
+  ctx.save();
+  ctx.strokeStyle = '#2196F3';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = '#2196F3';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
   for (var i = 0; i < SKELETON_EDGES.length; i++) {
     var a = SKELETON_EDGES[i][0];
     var b = SKELETON_EDGES[i][1];
@@ -162,12 +170,33 @@ function drawTargetPose() {
     ctx.lineTo(p2.x, p2.y);
     ctx.stroke();
   }
-  ctx.fillStyle = '#2196F3';
+  ctx.restore();
+  
+  // キーポイント（関節）を描画（グラデーション、影付き）
   for (var name in kp) {
     var p = toCanvas(kp[name].x, kp[name].y);
+    ctx.save();
+    var gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 8);
+    gradient.addColorStop(0, '#64b5f6');
+    gradient.addColorStop(0.7, '#2196F3');
+    gradient.addColorStop(1, '#1565c0');
+    ctx.fillStyle = gradient;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+    
+    // 内側の白い点
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 }
 
