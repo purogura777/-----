@@ -23,7 +23,7 @@ const STYLE = {
   // ラベル設定
   labelColor: '#FFFFFF',        // 文字色
   labelFont: 'bold 24px Arial', // フォント
-  labelMargin: 50               // 肩の位置からどれくらい上に表示するか
+  labelMargin: 80               // 肩の位置からどれくらい上に表示するか（さらに上に）
 };
 
 const COCO_KEYPOINT_NAMES = [
